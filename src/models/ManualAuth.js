@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const ManualAuthSchema = new mongoose.Schema(
   {
@@ -8,4 +8,4 @@ const ManualAuthSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("ManualAuth", ManualAuthSchema);
+export default mongoose.model("ManualAuth", ManualAuthSchema);

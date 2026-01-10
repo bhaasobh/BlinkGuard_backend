@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const RISK_LEVELS = ["LOW", "MEDIUM", "HIGH"];
 const SCAN_TYPES = ["TEXT", "URL", "IMAGE"];
@@ -19,4 +19,4 @@ const ScanResultSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("ScanResult", ScanResultSchema);
+export default mongoose.model("ScanResult", ScanResultSchema);

@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const UrlSchema = new mongoose.Schema(
   {
@@ -12,4 +12,4 @@ const UrlSchema = new mongoose.Schema(
 
 UrlSchema.index({ message_id: 1, original_url: 1 }, { unique: true });
 
-module.exports = mongoose.model("Url", UrlSchema);
+export default mongoose.model("Url", UrlSchema);

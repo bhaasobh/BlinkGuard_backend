@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const SocialAuthSchema = new mongoose.Schema(
   {
@@ -12,4 +12,4 @@ const SocialAuthSchema = new mongoose.Schema(
 SocialAuthSchema.index({ provider: 1, provider_user_id: 1 }, { unique: true }); //Ensures the same external account can’t be linked to multiple local users.
 SocialAuthSchema.index({ user_id: 1, provider: 1 }, { unique: true }); //Ensures a single local user can’t have duplicate links to the same provider
 
-module.exports = mongoose.model("SocialAuth", SocialAuthSchema);
+export default mongoose.model("SocialAuth", SocialAuthSchema);

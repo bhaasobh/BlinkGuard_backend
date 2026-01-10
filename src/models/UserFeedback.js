@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const UserFeedbackSchema = new mongoose.Schema(
   {
@@ -9,4 +9,4 @@ const UserFeedbackSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("UserFeedback", UserFeedbackSchema);
+export default mongoose.model("UserFeedback", UserFeedbackSchema);

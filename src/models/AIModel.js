@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const AIModelSchema = new mongoose.Schema(
   {
@@ -15,4 +15,4 @@ const AIModelSchema = new mongoose.Schema(
 
 AIModelSchema.index({ modelName: 1, version: 1 }, { unique: true });
 
-module.exports = mongoose.model("AIModel", AIModelSchema);
+export default mongoose.model("AIModel", AIModelSchema);
