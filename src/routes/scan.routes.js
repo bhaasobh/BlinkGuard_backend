@@ -2,7 +2,8 @@ import express from "express";
 import auth from "../middleware/auth.middleware.js";
 import {
   scanText,
-  getScanResult
+  getScanResult,
+  scanUrlController 
 } from "../controllers/scan.controller.js";
 
 /**
@@ -122,5 +123,6 @@ router.post("/text", auth, scanText);
  *               $ref: '#/components/schemas/NotFoundResponse'
  */
 router.get("/:scanId", auth, getScanResult);
+router.post("/url", scanUrlController);
 
 export default router;

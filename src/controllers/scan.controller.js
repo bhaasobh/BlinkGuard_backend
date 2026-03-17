@@ -1,5 +1,25 @@
 import ScanResult from "../models/ScanResult.js";
+import { scanUrl } from "../services/scan.service.js";
 
+export const scanUrlController = async (req, res) => {
+
+  try {
+
+    const { url } = req.body;
+if (!url) {
+  return res.status(400).json({ error: "URL is required" });
+}
+    const result = await scanUrl(url);
+
+    res.json(result);
+
+  } catch (err) {
+
+    res.status(500).json({ error: err.message });
+
+  }
+
+};
 export const scanText = async (req, res) => {
   const { messageId } = req.body;
 
@@ -27,3 +47,4 @@ export const getScanResult = async (req, res) => {
 
   res.json(scan);
 };
+
