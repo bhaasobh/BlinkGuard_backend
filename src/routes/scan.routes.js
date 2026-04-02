@@ -2,6 +2,7 @@ import express from "express";
 import auth from "../middleware/auth.middleware.js";
 import {
   scanText,
+  scanRawText,
   getScanResult
 } from "../controllers/scan.controller.js";
 
@@ -85,6 +86,10 @@ const router = express.Router();
  *               $ref: '#/components/schemas/UnauthorizedResponse'
  */
 router.post("/text", auth, scanText);
+
+
+router.post("/raw", auth, scanRawText);
+
 
 /**
  * @swagger
