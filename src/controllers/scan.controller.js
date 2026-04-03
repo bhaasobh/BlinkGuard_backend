@@ -2,6 +2,7 @@ import crypto from "crypto";
 import Message from "../models/Message.js";
 import ScanResult from "../models/ScanResult.js";
 import { analyzeMessage } from "../services/ai/ai.service.js";
+const MODEL_TIMEOUT_MS = Number(process.env.HF_TIMEOUT_MS || 8000);
 
 export const scanText = async (req, res) => {
   try {
@@ -56,18 +57,7 @@ export const scanRawText = async (req, res) => {
     }
 
     const contentHash = crypto.createHash("sha256").update(content).digest("hex");
-    const existingMessage= await Message.findOne({ contentHash });
-    if (existingMessage && existingMessage.scanResult) {
-      const existingScan = await ScanResult.findById(
-        existingMessage.scanResult
-      );
 
-      return res.json({
-        message: existingMessage,
-        scan: existingScan,
-        reused: true
-      });
-    }
 
     const message = await Message.create({
       messageId: crypto.randomUUID(),
@@ -124,5 +114,43 @@ export const getScanResult = async (req, res) => {
     res.json({ scan, message });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+};
+
+
+export const analyzeTxt = async (req, res) => {
+  const timeout = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
+  try {
+    const headers = { "Content-Type": "application/json" };
+    const controller = new AbortController();
+    
+    const { content } = req.body;
+    if (!content) {
+      return res.status(400).json({ error: "content is required" });
+    }
+
+
+    const url = 'https://blinkguardbackendmasanalyze-production.up.railway.app/analyze';
+    console.log("URL:", url);
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ message: content }),
+      signal: controller.signal
+    });
+        if (!response.ok) {
+      const text = await response.text();
+      console.error("HF error body:", text);
+      throw new Error(`HF model request failed: ${response.status} ${text}`);
+    }
+
+    const data = await response.json();
+    console.log("data:", data);
+    res.status(201).json({ data });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }finally{
+    clearTimeout(timeout);
   }
 };

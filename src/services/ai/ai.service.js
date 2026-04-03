@@ -30,6 +30,10 @@ function normalizeMlResult(data) {
 }
 
 async function callHuggingFaceModel(message) {
+  console.log("Entering callHuggingFaceModel");
+  console.log("Model repo:", DEFAULT_MODEL_REPO);
+  console.log("Has token:", !!process.env.HF_API_TOKEN);
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
 
@@ -40,22 +44,26 @@ async function callHuggingFaceModel(message) {
       headers.Authorization = `Bearer ${process.env.HF_API_TOKEN}`;
     }
 
-    const response = await fetch(
-      `https://router.huggingface.co/hf-inference/models/${DEFAULT_MODEL_REPO}`,
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ inputs: message }),
-        signal: controller.signal
-      }
-    );
+    const url = `https://router.huggingface.co/hf-inference/models/${DEFAULT_MODEL_REPO}`;
+    console.log("HF URL:", url);
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ inputs: message }),
+      signal: controller.signal
+    });
+
+    console.log("HF status:", response.status);
 
     if (!response.ok) {
       const text = await response.text();
+      console.error("HF error body:", text);
       throw new Error(`HF model request failed: ${response.status} ${text}`);
     }
 
     const data = await response.json();
+    console.log("HF success data:", data);
     return normalizeMlResult(data);
   } finally {
     clearTimeout(timeout);

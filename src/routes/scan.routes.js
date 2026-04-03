@@ -3,7 +3,8 @@ import auth from "../middleware/auth.middleware.js";
 import {
   scanText,
   scanRawText,
-  getScanResult
+  getScanResult,
+  analyzeTxt
 } from "../controllers/scan.controller.js";
 
 /**
@@ -89,7 +90,7 @@ router.post("/text", auth, scanText);
 
 
 router.post("/raw", auth, scanRawText);
-
+router.post("/rawtxt", auth, analyzeTxt);
 
 /**
  * @swagger
