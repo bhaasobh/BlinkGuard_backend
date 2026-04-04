@@ -118,39 +118,143 @@ export const getScanResult = async (req, res) => {
 };
 
 
+
+
+
+
 export const analyzeTxt = async (req, res) => {
-  const timeout = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
+  let timeout;
+  let controller;
+
   try {
-    const headers = { "Content-Type": "application/json" };
-    const controller = new AbortController();
-    
     const { content } = req.body;
-    if (!content) {
+
+    if (!content || !content.trim()) {
       return res.status(400).json({ error: "content is required" });
     }
 
+    const cleanContent = content.trim();
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
 
-    const url = 'https://blinkguardbackendmasanalyze-production.up.railway.app/analyze';
-    console.log("URL:", url);
+    const contentHash = crypto
+      .createHash("sha256")
+      .update(cleanContent)
+      .digest("hex");
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ message: content }),
-      signal: controller.signal
-    });
-        if (!response.ok) {
+    //this checks if message already exists in db (message model and scanresult in db)
+    const existingMessage = await Message.findOne({ contentHash }).populate("scanResult");
+
+    if (existingMessage && existingMessage.scanResult) {
+      const scan = existingMessage.scanResult;
+
+      return res.status(200).json({
+        fromDB: true,
+        data: {
+          message: existingMessage.content,
+          ml_prediction: scan.mlPrediction ?? "",
+          ml_risk_score: scan.mlRiskScore ?? 0,
+          final_decision: scan.decision ?? "",
+          risk_band: scan.riskLevel ? scan.riskLevel.toLowerCase() : "low",
+          final_risk_score: scan.confidenceScore ?? 0,
+          psychology_average: scan.psychologyRiskScore ?? 0,
+          psychological_factors: scan.psychologicalFactors ?? [],
+          explanations: scan.explanations ?? [],
+        },
+      });
+    }
+
+    //this is to analyze with ai+psychology rules
+    controller = new AbortController();
+    timeout = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
+
+    const response = await fetch(
+      "https://blinkguardbackendmasanalyze-production.up.railway.app/analyze",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: cleanContent }),
+        signal: controller.signal,
+      }
+    );
+
+    if (!response.ok) {
       const text = await response.text();
-      console.error("HF error body:", text);
       throw new Error(`HF model request failed: ${response.status} ${text}`);
     }
 
-    const data = await response.json();
-    console.log("data:", data);
-    res.status(201).json({ data });
+    const apiResponse = await response.json();
+    const analysis = apiResponse?.data || apiResponse;
+
+    const factors = analysis?.psychology_risk_scores || {};
+    const explanations = [];
+
+    if (factors.urgency > 0) explanations.push("Uses urgency language");
+    if (factors.authority > 0) explanations.push("References authority or official organizations");
+    if (factors.fear > 0) explanations.push("Uses fear or threat language");
+    if (factors.reward > 0) explanations.push("Offers a reward or prize");
+    if (factors.link > 0) explanations.push("Contains a link or shortened URL");
+    if (factors.contact_pressure > 0) explanations.push("Pushes the user to verify, click, or sign in");
+    if (factors.formatting > 0) explanations.push("Uses aggressive formatting");
+
+    const decision = (analysis?.final_decision || "").toLowerCase();
+    const shouldSave = decision === "suspicious" || decision === "phishing";
+
+    //this is to save suspicious/phishing messages
+    if (shouldSave) {
+      const messageId = crypto.randomUUID();
+      const scanId = crypto.randomUUID();
+
+      let riskLevel = "LOW";
+      if ((analysis?.risk_band || "").toLowerCase() === "medium") riskLevel = "MEDIUM";
+      if ((analysis?.risk_band || "").toLowerCase() === "high") riskLevel = "HIGH";
+
+      const savedScanResult = await ScanResult.create({
+        scanId,
+        messageId,
+        riskLevel,
+        scanType: "TEXT",
+        confidenceScore: analysis?.final_risk_score ?? 0,
+        psychologyRiskScore: analysis?.psychology_average ?? 0,
+        mlRiskScore: analysis?.ml_risk_score ?? 0,
+        psychologicalFactors: analysis?.psychological_factors ?? [],
+        mlPrediction: analysis?.ml_prediction ?? "",
+        decision: analysis?.final_decision ?? "",
+        explanations,
+        rawModelOutput: analysis,
+      });
+
+      await Message.create({
+        messageId,
+        userId: userId || "unknown",
+        sourceType: "MANUAL_SCAN",
+        content: cleanContent,
+        contentHash,
+        scanResult: savedScanResult._id,
+      });
+    }
+
+    //this return response
+    return res.status(200).json({
+      fromDB: false,
+      saved: shouldSave,
+      data: {
+        message: analysis?.message ?? cleanContent,
+        ml_prediction: analysis?.ml_prediction ?? "",
+        ml_confidence: analysis?.ml_confidence ?? 0,
+        ml_risk_score: analysis?.ml_risk_score ?? 0,
+        final_decision: analysis?.final_decision ?? "",
+        risk_band: analysis?.risk_band ?? "low",
+        final_risk_score: analysis?.final_risk_score ?? 0,
+        psychology_average: analysis?.psychology_average ?? 0,
+        high_signal_count: analysis?.high_signal_count ?? 0,
+        psychological_factors: analysis?.psychological_factors ?? [],
+        psychology_risk_scores: analysis?.psychology_risk_scores ?? {},
+        explanations,
+      },
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
-  }finally{
-    clearTimeout(timeout);
+    return res.status(500).json({ error: err.message });
+  } finally {
+    if (timeout) clearTimeout(timeout);
   }
 };
