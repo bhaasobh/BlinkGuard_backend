@@ -4,6 +4,11 @@ import {
   login
 } from "../controllers/auth.controller.js";
 
+//added this for the google auth 
+import { googleSignup } from "../controllers/auth.controller.js";
+
+
+
 /**
  * @swagger
  * tags:
@@ -133,4 +138,7 @@ router.post("/register", register);
  */
 router.post("/login", login);
 
+//this is for the google auth
+router.post("/google",googleSignup);
 export default router;
+

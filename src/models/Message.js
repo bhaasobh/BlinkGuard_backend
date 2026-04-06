@@ -2,10 +2,12 @@ import mongoose from "mongoose";
 
 const MessageSchema = new mongoose.Schema(
   {
-    message_id: { type: String, required: true, unique: true, index: true },
-    content_hash: { type: String, required: true, index: true },
-    source_type: { type: String, required: true, trim: true },
-    scan_result: { type: mongoose.Schema.Types.ObjectId, ref: "ScanResult" },
+    messageId: { type: String, required: true, unique: true, index: true },
+    userId: { type: String, required: true, index: true },
+    sourceType: { type: String, required: true, trim: true },
+    content: { type: String, required: false, trim: true },
+    contentHash: { type: String, required: true, index: true },
+    scanResult: { type: mongoose.Schema.Types.ObjectId, ref: "ScanResult" }
   },
   { timestamps: true }
 );
