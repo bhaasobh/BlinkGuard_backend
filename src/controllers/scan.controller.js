@@ -3,6 +3,11 @@ import Message from "../models/Message.js";
 import ScanResult from "../models/ScanResult.js";
 import { scanUrl } from "../services/scan.service.js";
 import { analyzeMessage } from "../services/ai/ai.service.js";
+import {
+  decryptMessageContent,
+  encryptMessageContent,
+  serializeMessage
+} from "../utils/messageEncryption.js";
 const MODEL_TIMEOUT_MS = Number(process.env.HF_TIMEOUT_MS || 8000);
 
 export const scanUrlController = async (req, res) => {
@@ -41,7 +46,8 @@ export const scanText = async (req, res) => {
       return res.status(404).json({ error: "Message not found" });
     }
 
-    const analysis = await analyzeMessage(message.content);
+    const content = decryptMessageContent(message);
+    const analysis = await analyzeMessage(content);
 
     const scan = await ScanResult.create({
       scanId: crypto.randomUUID(),
@@ -76,15 +82,11 @@ export const scanRawText = async (req, res) => {
       return res.status(400).json({ error: "content is required" });
     }
 
-    const contentHash = crypto.createHash("sha256").update(content).digest("hex");
-
-
     const message = await Message.create({
       messageId: crypto.randomUUID(),
       userId: req.user.userId,
       sourceType,
-      content,
-      contentHash
+      ...encryptMessageContent(content)
     });
 
     const analysis = await analyzeMessage(content);
@@ -108,7 +110,7 @@ export const scanRawText = async (req, res) => {
     message.scanResult = scan._id;
     await message.save();
 
-    res.status(201).json({ message, scan });
+    res.status(201).json({ message: serializeMessage(message), scan });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -131,7 +133,7 @@ export const getScanResult = async (req, res) => {
       return res.status(404).json({ error: "Not found" });
     }
 
-    res.json({ scan, message });
+    res.json({ scan, message: serializeMessage(message) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -150,33 +152,6 @@ export const analyzeTxt = async (req, res) => {
 
     const cleanContent = content.trim();
     const userId = req.user?.id || req.user?._id || req.user?.userId;
-
-    const contentHash = crypto
-      .createHash("sha256")
-      .update(cleanContent)
-      .digest("hex");
-
-    //this checks if message already exists in db (message model and scanresult in db)
-    const existingMessage = await Message.findOne({ contentHash }).populate("scanResult");
-
-    if (existingMessage && existingMessage.scanResult) {
-      const scan = existingMessage.scanResult;
-
-      return res.status(200).json({
-        fromDB: true,
-        data: {
-          message: existingMessage.content,
-          ml_prediction: scan.mlPrediction ?? "",
-          ml_risk_score: scan.mlRiskScore ?? 0,
-          final_decision: scan.decision ?? "",
-          risk_band: scan.riskLevel ? scan.riskLevel.toLowerCase() : "low",
-          final_risk_score: scan.confidenceScore ?? 0,
-          psychology_average: scan.psychologyRiskScore ?? 0,
-          psychological_factors: scan.psychologicalFactors ?? [],
-          explanations: scan.explanations ?? [],
-        },
-      });
-    }
 
     //this is to analyze with ai+psychology rules
     controller = new AbortController();
@@ -242,8 +217,7 @@ export const analyzeTxt = async (req, res) => {
         messageId,
         userId: userId || "unknown",
         sourceType: "MANUAL_SCAN",
-        content: cleanContent,
-        contentHash,
+        ...encryptMessageContent(cleanContent),
         scanResult: savedScanResult._id,
       });
     }
