@@ -2,9 +2,12 @@ import express from "express";
 import auth from "../middleware/auth.middleware.js";
 import {
   scanText,
+  scanRawText,
   getScanResult,
-  scanUrlController 
+  analyzeTxt,
+  scanUrlController   
 } from "../controllers/scan.controller.js";
+
 
 /**
  * @swagger
@@ -87,6 +90,12 @@ const router = express.Router();
  */
 router.post("/text", auth, scanText);
 
+router.get("/:scanId", auth, getScanResult);
+router.post("/url", scanUrlController);
+
+router.post("/raw", auth, scanRawText);
+router.post("/rawtxt", auth, analyzeTxt);
+
 /**
  * @swagger
  * /scan/{scanId}:
@@ -123,6 +132,6 @@ router.post("/text", auth, scanText);
  *               $ref: '#/components/schemas/NotFoundResponse'
  */
 router.get("/:scanId", auth, getScanResult);
-router.post("/url", scanUrlController);
 
 export default router;
+
