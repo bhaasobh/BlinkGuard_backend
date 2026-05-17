@@ -5,7 +5,7 @@ import {
   scanRawText,
   getScanResult,
   analyzeTxt,
-  scanUrlController   
+  scanUrlController
 } from "../controllers/scan.controller.js";
 
 
@@ -95,7 +95,6 @@ router.post("/url", scanUrlController);
 
 router.post("/raw", auth, scanRawText);
 router.post("/rawtxt", auth, analyzeTxt);
-
 /**
  * @swagger
  * /scan/{scanId}:

@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 const RISK_LEVELS = ["LOW", "MEDIUM", "HIGH"];
-const SCAN_TYPES = ["TEXT", "URL", "IMAGE", "AUTOMATED"];
+const SCAN_TYPES = ["TEXT", "URL", "IMAGE", "AUTOMATED","TEXT_URL"];
 const URL_STATUSES = ["SAFE", "SUSPICIOUS", "MALICIOUS"];
 
 const ScanResultSchema = new mongoose.Schema(
