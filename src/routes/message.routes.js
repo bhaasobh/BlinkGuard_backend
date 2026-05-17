@@ -23,7 +23,24 @@ import { createMessage, getMessages } from "../controllers/message.controller.js
  *           example: Your account will be locked unless you act now.
  *     MessageResponse:
  *       type: object
- *       description: Message record stored in the system.
+ *       properties:
+ *         messageId:
+ *           type: string
+ *         userId:
+ *           type: string
+ *         sourceType:
+ *           type: string
+ *         content:
+ *           type: string
+ *           description: Decrypted message content.
+ *         scanResult:
+ *           type: string
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
  *     UnauthorizedResponse:
  *       type: object
  *       properties:
