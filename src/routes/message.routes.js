@@ -1,6 +1,6 @@
 import express from "express";
 import auth from "../middleware/auth.middleware.js";
-import { createMessage } from "../controllers/message.controller.js";
+import { createMessage, getMessages } from "../controllers/message.controller.js";
 
 /**
  * @swagger
@@ -23,7 +23,7 @@ import { createMessage } from "../controllers/message.controller.js";
  *           example: Your account will be locked unless you act now.
  *     MessageResponse:
  *       type: object
- *       description: Message record created in the system.
+ *       description: Message record stored in the system.
  *     UnauthorizedResponse:
  *       type: object
  *       properties:
@@ -37,6 +37,26 @@ const router = express.Router();
 /**
  * @swagger
  * /messages:
+ *   get:
+ *     summary: Get messages for the authenticated user
+ *     tags: [Messages]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Messages for the authenticated user, newest first
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/MessageResponse'
+ *       401:
+ *         description: Missing or invalid token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/UnauthorizedResponse'
  *   post:
  *     summary: Create a message entry
  *     tags: [Messages]
@@ -62,6 +82,7 @@ const router = express.Router();
  *             schema:
  *               $ref: '#/components/schemas/UnauthorizedResponse'
  */
+router.get("/", auth, getMessages);
 router.post("/", auth, createMessage);
 
 export default router;

@@ -1,6 +1,17 @@
 import Message from "../models/Message.js";
 import crypto from "crypto";
 
+export const getMessages = async (req, res) => {
+  try {
+    const messages = await Message.find({ userId: req.user.userId })
+      .sort({ createdAt: -1 });
+
+    res.json(messages);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 export const createMessage = async (req, res) => {
   try {
     const { sourceType, content } = req.body;
