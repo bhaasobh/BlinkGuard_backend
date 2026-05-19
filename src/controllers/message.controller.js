@@ -5,6 +5,7 @@ import { encryptMessageContent, serializeMessage } from "../utils/messageEncrypt
 export const getMessages = async (req, res) => {
   try {
     const messages = await Message.find({ userId: req.user.userId })
+      .populate("scanResult")
       .sort({ createdAt: -1 });
 
     res.json(messages.map(serializeMessage));

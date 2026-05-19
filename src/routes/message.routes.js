@@ -34,7 +34,9 @@ import { createMessage, getMessages } from "../controllers/message.controller.js
  *           type: string
  *           description: Decrypted message content.
  *         scanResult:
- *           type: string
+ *           allOf:
+ *             - $ref: '#/components/schemas/ScanResult'
+ *           nullable: true
  *         createdAt:
  *           type: string
  *           format: date-time
