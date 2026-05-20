@@ -1,7 +1,7 @@
 import express from "express";
 import auth from "../middleware/auth.middleware.js";
 import { createMessage } from "../controllers/message.controller.js";
-
+import { getMonthMsgCountByType } from "../controllers/message.controller.js";
 /**
  * @swagger
  * tags:
@@ -63,5 +63,5 @@ const router = express.Router();
  *               $ref: '#/components/schemas/UnauthorizedResponse'
  */
 router.post("/", auth, createMessage);
-
+router.post("/count",auth,getMonthMsgCountByType);
 export default router;
