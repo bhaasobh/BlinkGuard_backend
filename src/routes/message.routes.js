@@ -1,6 +1,6 @@
 import express from "express";
 import auth from "../middleware/auth.middleware.js";
-import { createMessage, getMessages } from "../controllers/message.controller.js";
+import { createMessage , getMessages, getMonthMsgCountByType} from "../controllers/message.controller.js";
 
 /**
  * @swagger
@@ -34,7 +34,9 @@ import { createMessage, getMessages } from "../controllers/message.controller.js
  *           type: string
  *           description: Decrypted message content.
  *         scanResult:
- *           type: string
+ *           allOf:
+ *             - $ref: '#/components/schemas/ScanResult'
+ *           nullable: true
  *         createdAt:
  *           type: string
  *           format: date-time
@@ -101,5 +103,5 @@ const router = express.Router();
  */
 router.get("/", auth, getMessages);
 router.post("/", auth, createMessage);
-
+router.post("/count",auth,getMonthMsgCountByType);
 export default router;
