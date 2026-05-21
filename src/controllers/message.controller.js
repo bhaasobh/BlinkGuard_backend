@@ -53,7 +53,7 @@ export const createMessage = async (req, res) => {
 
 export const getMonthMsgCountByType = async (req, res) => {
   try {
-    const { userId } = req.body;
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
 
     if (!userId) {
       return res.status(400).json({ error: "userId is required" });
