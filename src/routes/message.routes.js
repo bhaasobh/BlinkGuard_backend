@@ -1,6 +1,6 @@
 import express from "express";
 import auth from "../middleware/auth.middleware.js";
-import { createMessage, getMessages } from "../controllers/message.controller.js";
+import { createMessage , getMessages, getMonthMsgCountByType} from "../controllers/message.controller.js";
 
 /**
  * @swagger
@@ -103,5 +103,5 @@ const router = express.Router();
  */
 router.get("/", auth, getMessages);
 router.post("/", auth, createMessage);
-
+router.post("/count",auth,getMonthMsgCountByType);
 export default router;
