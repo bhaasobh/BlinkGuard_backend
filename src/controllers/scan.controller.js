@@ -446,7 +446,7 @@ export const analyzeTxt = async (req, res) => {
         : 'HIGH';
     const shouldSave = finalDecision === "suspicious" || finalDecision === "phishing";
 
-//here is to safe the message to db if it is phishing
+//here is to save the message to db if it is phishing
    if (shouldSave) {
       const messageId = crypto.randomUUID();
       const scanId = crypto.randomUUID();

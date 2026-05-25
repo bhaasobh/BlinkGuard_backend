@@ -53,7 +53,7 @@ export const createMessage = async (req, res) => {
 
 export const getMonthMsgCountByType = async (req, res) => {
   try {
-    const { userId } = req.body;
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
 
     if (!userId) {
       return res.status(400).json({ error: "userId is required" });
@@ -114,5 +114,79 @@ export const getMonthMsgCountByType = async (req, res) => {
   } catch (err) {
     console.error("Error getting monthly message count:", err);
     return res.status(500).json({ error: "Server error" });
+  }
+};
+
+
+
+export const keyinsightsReport = async (req, res) => {
+  try {
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+
+    if (!userId) {
+      return res.status(400).json({error: "userId is required"});
+    }
+
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const scanTypeResult = await Message.aggregate([
+      {
+        $match: {
+          userId: userId.toString(),
+          createdAt: {
+            $gte: startOfMonth,
+            $lt: startOfNextMonth,
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "scanresults",
+          localField: "scanResult",
+          foreignField: "_id",
+          as: "scanResultData",
+        },
+      },
+      {
+        $unwind: "$scanResultData",
+      },
+      {
+        $group: {
+          _id: "$scanResultData.scanType",
+          count: {$sum: 1},
+        },
+      },
+      {
+        $sort: {
+          count: -1,
+        },
+      },
+    ]);
+
+    const topScanType = scanTypeResult[0]?._id || null;
+    const topScanTypeCount = scanTypeResult[0]?.count || 0;
+
+    const autoMessagesCount = await Message.countDocuments({
+      userId: userId.toString(),
+      sourceType: "AUTO_SCAN",
+      createdAt: {
+        $gte: startOfMonth,
+        $lt: startOfNextMonth,
+      },
+    });
+
+    const reviewCount = 0;
+
+    return res.status(200).json({
+      topScanType,
+      topScanTypeCount,
+      autoMessagesCount,
+      reviewCount,
+    });
+  } catch (err) {
+    console.error("Error getting key insights report:", err);
+    return res.status(500).json({error: "Server error"});
   }
 };
