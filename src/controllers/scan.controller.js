@@ -263,7 +263,7 @@ export const getScanResult = async (req, res) => {
 
 
 const extractUrls = text => {
-  const matches = text.match(/https?:\/\/[^\s]+/g);
+  const matches = text.match(/https?:\/\/[^\s]+/gi);
   return [...new Set(matches || [])];
 };
 
@@ -451,7 +451,7 @@ export const analyzeTxt = async (req, res) => {
       const messageId = crypto.randomUUID();
       const scanId = crypto.randomUUID();
       const scanType =
-  urls.length > 0 && cleanContent.replace(/https?:\/\/[^\s]+/g, "").trim().length > 0
+  urls.length > 0 && cleanContent.replace(/https?:\/\/[^\s]+/gi, "").trim().length > 0
     ? "TEXT_URL"
     : urls.length > 0
     ? "URL"
