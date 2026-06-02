@@ -10,7 +10,8 @@ import {
   serializeMessage
 } from "../utils/messageEncryption.js";
 const MODEL_TIMEOUT_MS = Number(process.env.HF_TIMEOUT_MS || 8000);
-const INTERNAL_API_KEY = process.env.X_INTERNAL_API_KEY || process.env.INTERNAL_API_KEY;
+
+const getInternalApiKey = () => process.env.X_INTERNAL_API_KEY || process.env.INTERNAL_API_KEY;
 
 export const scanUrlController = async (req, res) => {
 
@@ -165,7 +166,7 @@ export const getScanResult = async (req, res) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(INTERNAL_API_KEY ? { "X-Internal-Api-Key": INTERNAL_API_KEY } : {}),
+          ...(getInternalApiKey() ? { "X-Internal-Api-Key": getInternalApiKey() } : {}),
         },
         body: JSON.stringify({ message: cleanContent }),
         signal: controller.signal,
@@ -402,14 +403,14 @@ export const analyzeTxt = async (req, res) => {
 //here it does the ml scan alone
     controller=new AbortController();
     timeout = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
-
+    const internalApiKey = getInternalApiKey();
     const response = await fetch(
       "https://blinkguardbackendmasanalyze-production.up.railway.app/analyze",
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(INTERNAL_API_KEY ? { "X-Internal-Api-Key": INTERNAL_API_KEY } : {}),
+          ...(internalApiKey ? { "X-Internal-Api-Key": internalApiKey } : {}),
         },
         body: JSON.stringify({ message: cleanContent }),
         signal: controller.signal,
