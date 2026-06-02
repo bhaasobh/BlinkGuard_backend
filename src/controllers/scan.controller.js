@@ -10,6 +10,7 @@ import {
   serializeMessage
 } from "../utils/messageEncryption.js";
 const MODEL_TIMEOUT_MS = Number(process.env.HF_TIMEOUT_MS || 8000);
+const INTERNAL_API_KEY = process.env.X_INTERNAL_API_KEY || process.env.INTERNAL_API_KEY;
 
 export const scanUrlController = async (req, res) => {
 
@@ -162,7 +163,10 @@ export const getScanResult = async (req, res) => {
       "https://blinkguardbackendmasanalyze-production.up.railway.app/analyze",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(INTERNAL_API_KEY ? { "X-Internal-Api-Key": INTERNAL_API_KEY } : {}),
+        },
         body: JSON.stringify({ message: cleanContent }),
         signal: controller.signal,
       }
@@ -403,7 +407,10 @@ export const analyzeTxt = async (req, res) => {
       "https://blinkguardbackendmasanalyze-production.up.railway.app/analyze",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(INTERNAL_API_KEY ? { "X-Internal-Api-Key": INTERNAL_API_KEY } : {}),
+        },
         body: JSON.stringify({ message: cleanContent }),
         signal: controller.signal,
       }
