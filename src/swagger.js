@@ -7,6 +7,15 @@ export default swaggerJsdoc({
       title: "BlinkGuard API",
       version: "1.0.0",
       description: "Spam & phishing detection API"
+    },
+    components: {
+      securitySchemes: {
+        DashboardApiKey: {
+          type: "apiKey",
+          in: "header",
+          name: "x-dashboard-api-key"
+        }
+      }
     }
   },
   apis: ["./src/routes/*.js"]

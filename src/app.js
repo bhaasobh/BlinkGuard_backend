@@ -6,6 +6,7 @@ import swaggerUi from "swagger-ui-express";
 import specs from "./swagger.js";
 import analyzeTxt from "./routes/scan.routes.js"
 import reviewRoutes from "./routes/review.routes.js";
+import dashboardRoutes from "./routes/dashboard.routes.js";
 
 const app = express();
 
@@ -17,5 +18,6 @@ app.use("/messages", messageRoutes);
 app.use("/scan", scanRoutes);
 app.use("/analyze",analyzeTxt);
 app.use("/reviews", reviewRoutes);
+app.use("/dashboard", dashboardRoutes);
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));
 export default app;
