@@ -130,7 +130,6 @@ router.post("/rawtxt", auth, analyzeTxt);
  *             schema:
  *               $ref: '#/components/schemas/NotFoundResponse'
  */
-router.get("/:scanId", auth, getScanResult);
 
 export default router;
 
