@@ -11,12 +11,20 @@ import {
 } from "../utils/messageEncryption.js";
 const MODEL_TIMEOUT_MS = Number(process.env.HF_TIMEOUT_MS || 8000);
 
-const getInternalApiKey = () => (
-  process.env.INTERNAL_API_KEY ||
-  process.env.X_INTERNAL_API_KEY ||
-  process.env["X-Internal-Api-Key"] ||
-  ""
-).trim();
+const INTERNAL_API_KEY_ENV_NAMES = [
+  "INTERNAL_API_KEY",
+  "X_INTERNAL_API_KEY",
+  "X-Internal-Api-Key"
+];
+
+const getInternalApiKey = () => {
+  for (const name of INTERNAL_API_KEY_ENV_NAMES) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+
+  return "";
+};
 
 export const scanUrlController = async (req, res) => {
 
@@ -409,6 +417,11 @@ export const analyzeTxt = async (req, res) => {
     controller=new AbortController();
     timeout = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
     const internalApiKey = getInternalApiKey();
+
+    if (!internalApiKey) {
+      return res.status(500).json({ error: "INTERNAL_API_KEY is not configured" });
+    }
+
     const response = await fetch(
       "https://blinkguardbackendmasanalyze-production.up.railway.app/analyze",
       {
@@ -424,6 +437,10 @@ export const analyzeTxt = async (req, res) => {
 
     if (!response.ok) {
       const text = await response.text();
+      if (response.status === 403) {
+        throw new Error(`ML model request forbidden: check INTERNAL_API_KEY matches the analyze service. ${text}`);
+      }
+
       throw new Error(`ML model request failed: ${response.status} ${text}`);
     }
 
