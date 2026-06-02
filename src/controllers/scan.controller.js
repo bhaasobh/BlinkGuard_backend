@@ -11,7 +11,12 @@ import {
 } from "../utils/messageEncryption.js";
 const MODEL_TIMEOUT_MS = Number(process.env.HF_TIMEOUT_MS || 8000);
 
-const getInternalApiKey = () => process.env.X_INTERNAL_API_KEY || process.env.INTERNAL_API_KEY;
+const getInternalApiKey = () => (
+  process.env.INTERNAL_API_KEY ||
+  process.env.X_INTERNAL_API_KEY ||
+  process.env["X-Internal-Api-Key"] ||
+  ""
+).trim();
 
 export const scanUrlController = async (req, res) => {
 
