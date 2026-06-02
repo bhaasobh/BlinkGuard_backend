@@ -7,6 +7,21 @@ import Levenshtein
 import time
 import os
 import base64
+import requests
+
+TRUSTED_DOMAINS = [
+    "google.com",
+    "gmail.com",
+    "youtube.com",
+    "github.com",
+    "microsoft.com",
+    "apple.com",
+    "amazon.com",
+    "facebook.com",
+    "instagram.com",
+    "linkedin.com",
+    "paypal.com"
+]
 
 GSB_API_KEY = os.getenv("GSB_API_KEY")
 VT_API_KEY = os.getenv("VT_API_KEY")
@@ -23,6 +38,19 @@ URL_SHORTENERS = [
     "bit.ly", "tinyurl.com", "t.co", "goo.gl", "is.gd", "ow.ly"
 ]
 
+def expand_url(url):
+    try:
+        response = requests.head(
+            url,
+            allow_redirects=True,
+            timeout=5
+        )
+
+        return response.url
+
+    except Exception:
+        return url
+    
 def similar_to_brand(domain: str):
     for brand in COMMON_BRANDS:
         distance = Levenshtein.distance(domain.split(".")[0], brand)
@@ -39,20 +67,32 @@ def is_ip_address(domain: str):
 
 def unusual_domain_structure(domain: str) -> bool:
     parts = domain.split(".")
-    return len(parts) > 3 or "-" in domain
+    return len(parts) > 5 or "-" in domain
  
+def unusual_domain_structure(domain):
+    if domain.endswith(".ac.il"):
+        return False
 
+    parts = domain.split(".")
+    return len(parts) > 5 or "-" in domain
 def suspicious_tld(domain: str) -> bool:
     return domain.split(".")[-1] in SUSPICIOUS_TLDS
 
 
 def lacks_https(url: str) -> bool:
-    return not url.startswith("https://")
+    parsed = urlparse(url)
+
+    if parsed.scheme == "":
+        return False
+
+    return parsed.scheme == "http"
 
 
-def overly_complex_path(url: str) -> bool:
-    path = urlparse(url).path
-    return bool(re.search(r"[a-zA-Z0-9]{10,}", path))
+def overly_complex_path(url):
+    parsed = urlparse(url)
+    long_params = len(parsed.query) > 100
+    many_params = parsed.query.count("&") > 5
+    return long_params or many_params
 
 
 def is_shortened_url(domain: str) -> bool:
@@ -80,15 +120,28 @@ def looks_random_string(s: str) -> bool:
 
     return has_digit and vowel_ratio < 0.4
 
-
+def is_trusted_domain(domain):
+    return any(
+        domain == trusted or domain.endswith("." + trusted)
+        for trusted in TRUSTED_DOMAINS
+    )
 def heuristic_analysis(url: str, vt_malicious: int):
     score = 0
     reasons = []
 
     parsed = urlparse(url)
-    domain = parsed.netloc.lower()
+    domain = parsed.netloc.lower() or parsed.path.lower()
     domain_label = domain.split(".")[0]
 
+    trusted = is_trusted_domain(domain)
+
+    if trusted:
+       reasons.append("Trusted domain")
+
+    if domain.endswith(".ac.il"):
+       reasons.append("Educational domain")
+       return score, reasons
+    
     if similar_to_brand(domain):
        score += 20
        reasons.append("Domain very similar to known brand")
@@ -108,7 +161,7 @@ def heuristic_analysis(url: str, vt_malicious: int):
     if overly_complex_path(url):
         score += 10
         reasons.append("Overly complex URL path")
-
+    
     if is_shortened_url(domain):
         score += 20
         reasons.append("URL shortening service used")
@@ -117,9 +170,9 @@ def heuristic_analysis(url: str, vt_malicious: int):
         score += 15
         reasons.append("Random-looking domain name")
 
-    if vt_malicious == 0:
-        score += 10
-        reasons.append("No existing reputation data")
+    if vt_malicious > 0:
+        score += vt_malicious * 10
+        reasons.append("Detected by security vendors")
 
     if is_ip_address(domain):
         score += 25
@@ -214,7 +267,9 @@ def check_url_virustotal(url: str):
     heuristic_score, reasons = heuristic_analysis(url, malicious)
     final_risk_score = min(100, base_risk + heuristic_score)
 
-    if final_risk_score < 30:
+    if "Trusted domain" in reasons:
+        final_verdict = "safe"
+    elif final_risk_score < 30:
         final_verdict = "unknown"
     elif final_risk_score < 60:
         final_verdict = "suspicious"
@@ -261,5 +316,15 @@ import json
 if __name__ == "__main__":
     url = sys.argv[1]
 
-    result = check_url_virustotal(url)
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+
+    original_url = url
+    expanded_url = expand_url(url)
+
+    result = check_url_virustotal(expanded_url)
+
+    result["url"] = original_url
+    result["expanded_url"] = expanded_url
+
     print(json.dumps(result))
