@@ -339,13 +339,6 @@ const combineResults = (analysis, urlResults) => {
     finalScore = Math.max(finalScore, 55);
   }
 
-  if (
-    maxUrlScore !== null &&
-    maxUrlScore < 50 &&
-    urlResults.length > 0
-  ) {
-    finalScore = Math.max(finalScore, 70);
-  }
 
   return {
     finalScore,
@@ -427,6 +420,8 @@ export const analyzeTxt = async (req, res) => {
 
 //here it extracts the url and then does the scan for it 
     const urls = extractUrls(cleanContent);
+   
+
     const urlResults = await Promise.all(
   urls.map(async url => {
     try {
@@ -444,7 +439,42 @@ export const analyzeTxt = async (req, res) => {
   })
 );
 
-//here it combines the two results together to make a final result
+const textWithoutUrls =
+  cleanContent.replace(/https?:\/\/[^\s]+/gi, "").trim();
+
+const isUrlOnly =
+  urls.length > 0 &&
+  textWithoutUrls.length === 0;
+
+if (isUrlOnly && urlResults.length > 0) {
+
+  const bestUrl = urlResults[0];
+
+  return res.status(200).json({
+    fromDB: false,
+    saved: false,
+    data: {
+      message: cleanContent,
+      ml_prediction: "URL_ONLY",
+      final_decision:
+        bestUrl.verdict === "dangerous"
+          ? "phishing"
+          : "not phishing",
+      risk_band:
+        bestUrl.risk_score > 70
+          ? "HIGH"
+          : bestUrl.risk_score > 30
+          ? "MEDIUM"
+          : "LOW",
+      final_risk_score:
+        bestUrl.risk_score / 100,
+      psychological_factors: [],
+      explanations:
+        bestUrl.heuristic_reasons || [],
+      urlResults,
+    },
+  });
+}
     const finalResult = combineResults(analysis, urlResults);
     const finalDecision = finalResult.finalScore < 40 ? 'not phishing' : 'phishing';
     const riskBand= finalResult.finalScore < 30
