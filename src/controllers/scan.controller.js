@@ -498,8 +498,20 @@ if (isUrlOnly && urlResults.length > 0) {
   });
 }
     const finalResult = combineResults(analysis, urlResults);
-    const finalDecision = finalResult.finalScore < 40 ? 'not phishing' : 'phishing';
-    const riskBand= finalResult.finalScore < 30
+let finalDecision = "";
+    if(analysis?.final_decision=="phishing" ){
+    
+    finalDecision = finalResult.finalScore > 60
+    ? "phishing"
+    : finalResult.finalScore < 60
+    ? "suspicious" : "suspicious";
+    }
+    else{if(analysis?.final_decision=="spam"){
+    finalDecision = "suspicious";
+    }else{
+      finalDecision = finalResult.finalScore > 30 ? "suspicious" : "safe";
+    }
+  }    const riskBand= finalResult.finalScore < 30
         ? 'LOW'
         : finalResult.finalScore < 70
         ? 'MEDIUM'
