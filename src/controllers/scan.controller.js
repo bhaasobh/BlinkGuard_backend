@@ -3,6 +3,7 @@ import Message from "../models/Message.js";
 import ScanResult from "../models/ScanResult.js";
 import { scanUrl } from "../services/scan.service.js";
 import { analyzeMessage } from "../services/ai/ai.service.js";
+import { translateToEnglishForAnalysis } from "../services/translation.service.js";
 import { error } from "console";
 import {
   decryptMessageContent,
@@ -63,7 +64,8 @@ export const scanText = async (req, res) => {
     }
 
     const content = decryptMessageContent(message);
-    const analysis = await analyzeMessage(content);
+    const translation = await translateToEnglishForAnalysis(content);
+    const analysis = await analyzeMessage(translation.text);
 
     const scan = await ScanResult.create({
       scanId: crypto.randomUUID(),
@@ -105,7 +107,8 @@ export const scanRawText = async (req, res) => {
       ...encryptMessageContent(content)
     });
 
-    const analysis = await analyzeMessage(content);
+    const translation = await translateToEnglishForAnalysis(content);
+    const analysis = await analyzeMessage(translation.text);
 
     const scan = await ScanResult.create({
       scanId: crypto.randomUUID(),
@@ -415,6 +418,8 @@ export const analyzeTxt = async (req, res) => {
       return res.status(500).json({ error: "INTERNAL_API_KEY is not configured" });
     }
 
+    const translation = await translateToEnglishForAnalysis(cleanContent);
+
     const response = await fetch(
       "https://blinkguardbackendmasanalyze-production.up.railway.app/analyze",
       {
@@ -423,7 +428,7 @@ export const analyzeTxt = async (req, res) => {
           "Content-Type": "application/json",
           ...(internalApiKey ? { "X-Internal-Api-Key": internalApiKey } : {}),
         },
-        body: JSON.stringify({ message: cleanContent }),
+        body: JSON.stringify({ message: translation.text }),
         signal: controller.signal,
       }
     );
@@ -498,7 +503,7 @@ if (isUrlOnly && urlResults.length > 0) {
   });
 }
     const finalResult = combineResults(analysis, urlResults);
-let finalDecision = "";
+    let finalDecision = "";
     if(analysis?.final_decision=="phishing" ){
     
     finalDecision = finalResult.finalScore > 60
@@ -511,11 +516,15 @@ let finalDecision = "";
     }else{
       finalDecision = finalResult.finalScore > 30 ? "suspicious" : "safe";
     }
-  }    const riskBand= finalResult.finalScore < 30
+  }
+     
+    const riskBand= finalResult.finalScore < 30
         ? 'LOW'
         : finalResult.finalScore < 70
         ? 'MEDIUM'
         : 'HIGH';
+
+
     const shouldSave = finalDecision === "suspicious" || finalDecision === "phishing";
 
 //here is to save the message to db if it is phishing
