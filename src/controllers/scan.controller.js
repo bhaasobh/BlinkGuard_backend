@@ -375,6 +375,7 @@ const combineResults = (analysis, urlResults) => {
 export const analyzeTxt = async (req, res) => {
   let timeout;
   let controller;
+  console.log("USER:", req.user);
   try{
     const { content,sourceType}= req.body;
     if(!content || !content.trim()){

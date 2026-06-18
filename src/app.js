@@ -7,7 +7,7 @@ import specs from "./swagger.js";
 import analyzeTxt from "./routes/scan.routes.js"
 import reviewRoutes from "./routes/review.routes.js";
 import dashboardRoutes from "./routes/dashboard.routes.js";
-
+import gmailRoutes from "./routes/gmail.routes.js";
 const app = express();
 
 app.use(express.json());
@@ -20,4 +20,5 @@ app.use("/analyze",analyzeTxt);
 app.use("/reviews", reviewRoutes);
 app.use("/dashboard", dashboardRoutes);
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));
+app.use( "/gmail",gmailRoutes);
 export default app;
