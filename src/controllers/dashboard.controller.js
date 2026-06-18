@@ -53,6 +53,35 @@ const formatCounts = (rows, keys) => {
   return counts;
 };
 
+const buildUserNameMap = async (userIds) => {
+  const uniqueUserIds = [...new Set(userIds.filter(Boolean))];
+
+  if (uniqueUserIds.length === 0) return new Map();
+
+  const users = await User.find({ user_id: { $in: uniqueUserIds } })
+    .select("user_id display_name")
+    .lean();
+
+  return new Map(users.map((user) => [user.user_id, user.display_name]));
+};
+
+const serializeDashboardMessage = (message, userNamesById) => {
+  const data = serializeMessage(message);
+
+  return {
+    ...data,
+    userName: userNamesById.get(data.userId) || ""
+  };
+};
+
+const serializeDashboardMessages = async (messages) => {
+  const userNamesById = await buildUserNameMap(
+    messages.map((message) => message.userId)
+  );
+
+  return messages.map((message) => serializeDashboardMessage(message, userNamesById));
+};
+
 export const getDashboardSummary = async (req, res) => {
   try {
     const [
@@ -77,6 +106,7 @@ export const getDashboardSummary = async (req, res) => {
         .sort({ createdAt: -1 })
         .limit(10)
     ]);
+    const serializedRecentMessages = await serializeDashboardMessages(recentMessages);
 
     res.json({
       totals: {
@@ -86,7 +116,7 @@ export const getDashboardSummary = async (req, res) => {
       },
       riskLevels: formatCounts(riskRows, ["LOW", "MEDIUM", "HIGH"]),
       urlStatuses: formatCounts(urlStatusRows, ["SAFE", "SUSPICIOUS", "MALICIOUS"]),
-      recentMessages: recentMessages.map(serializeMessage),
+      recentMessages: serializedRecentMessages,
       recentHighRiskScans
     });
   } catch (err) {
@@ -154,13 +184,14 @@ export const getDashboardMessages = async (req, res) => {
         .skip(skip)
         .limit(limit)
     ]);
+    const serializedMessages = await serializeDashboardMessages(messages);
 
     res.json({
       page,
       limit,
       total,
       totalPages: Math.ceil(total / limit),
-      data: messages.map(serializeMessage)
+      data: serializedMessages
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -204,7 +235,9 @@ export const getDashboardMessageById = async (req, res) => {
       return res.status(404).json({ error: "Message not found" });
     }
 
-    res.json(serializeMessage(message));
+    const userNamesById = await buildUserNameMap([message.userId]);
+
+    res.json(serializeDashboardMessage(message, userNamesById));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
