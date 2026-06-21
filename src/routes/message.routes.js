@@ -1,6 +1,12 @@
 import express from "express";
 import auth from "../middleware/auth.middleware.js";
-import { createMessage , getMessages, getMonthMsgCountByType, keyinsightsReport} from "../controllers/message.controller.js";
+import {
+  createMessage,
+  getMessages,
+  getMonthMsgCountByType,
+  keyinsightsReport,
+  updateMessageClassification,
+} from "../controllers/message.controller.js";
 
 /**
  * @swagger
@@ -103,6 +109,7 @@ const router = express.Router();
  */
 router.get("/", auth, getMessages);
 router.post("/", auth, createMessage);
+router.patch("/classification", auth, updateMessageClassification);
 router.post("/count",auth,getMonthMsgCountByType);
 router.post("/keyinsight",auth,keyinsightsReport);
 export default router;

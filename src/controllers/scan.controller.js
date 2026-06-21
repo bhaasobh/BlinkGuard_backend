@@ -3,7 +3,8 @@ import Message from "../models/Message.js";
 import ScanResult from "../models/ScanResult.js";
 import { scanUrl } from "../services/scan.service.js";
 import { analyzeMessage } from "../services/ai/ai.service.js";
-import { error } from "console";
+import { translateToEnglishForAnalysis } from "../services/translation.service.js";
+import { extractTextFromImage } from "../services/vision.service.js";
 import {
   decryptMessageContent,
   encryptMessageContent,
@@ -63,7 +64,8 @@ export const scanText = async (req, res) => {
     }
 
     const content = decryptMessageContent(message);
-    const analysis = await analyzeMessage(content);
+    const translation = await translateToEnglishForAnalysis(content);
+    const analysis = await analyzeMessage(translation.text);
 
     const scan = await ScanResult.create({
       scanId: crypto.randomUUID(),
@@ -105,7 +107,8 @@ export const scanRawText = async (req, res) => {
       ...encryptMessageContent(content)
     });
 
-    const analysis = await analyzeMessage(content);
+    const translation = await translateToEnglishForAnalysis(content);
+    const analysis = await analyzeMessage(translation.text);
 
     const scan = await ScanResult.create({
       scanId: crypto.randomUUID(),
@@ -301,8 +304,6 @@ const combineResults = (analysis, urlResults) => {
     }
   }
 
-  console.log("analysis", analysis);
-
   const urlScores = urlResults
     .map(u =>
       typeof u?.riskScore === "number"
@@ -352,13 +353,6 @@ const combineResults = (analysis, urlResults) => {
     finalScore = Math.max(finalScore, 55);
   }
 
-  if (
-    maxUrlScore !== null &&
-    maxUrlScore < 50 &&
-    urlResults.length > 0
-  ) {
-    finalScore = Math.max(finalScore, 70);
-  }
 
   return {
     finalScore,
@@ -379,31 +373,34 @@ const combineResults = (analysis, urlResults) => {
 
 
 
-export const analyzeTxt = async (req, res) => {
+const scanCombinedText = async ({
+  content,
+  sourceType = "MANUAL_SCAN",
+  userId,
+  scanTypeOverride
+}) => {
   let timeout;
   let controller;
-  try{
-    const { content,sourceType}= req.body;
-    if(!content || !content.trim()){
-      return res.status(400).json({error:"content is reqired"});
-    }
 
-    const cleanContent=content.trim();
-    const userId = req.user?.id || req.user?._id || req.user?.userId;
+  try {
+    const cleanContent = content.trim();
     const contentHash = crypto
       .createHash("sha256")
       .update(cleanContent)
       .digest("hex");
-    const existingMessage = await Message.findOne({ contentHash }).populate("scanResult");
+    const existingMessage = await Message.findOne({
+      contentHash,
+      userId
+    }).populate("scanResult");
 
     if (existingMessage && existingMessage.scanResult) {
       const scan = existingMessage.scanResult;
 
-      return res.status(200).json({
+      return {
         fromDB: true,
         saved: true,
         data: {
-          message: existingMessage.content,
+          message: cleanContent,
           ml_prediction: scan.mlPrediction ?? "",
           final_decision: scan.decision ?? "",
           risk_band: scan.riskLevel ?? "LOW",
@@ -411,7 +408,7 @@ export const analyzeTxt = async (req, res) => {
           psychological_factors: scan.psychologicalFactors ?? [],
           explanations: scan.explanations ?? [],
         },
-      });
+      };
     }
 //here it does the ml scan alone
     controller=new AbortController();
@@ -419,8 +416,10 @@ export const analyzeTxt = async (req, res) => {
     const internalApiKey = getInternalApiKey();
 
     if (!internalApiKey) {
-      return res.status(500).json({ error: "INTERNAL_API_KEY is not configured" });
+      throw new Error("INTERNAL_API_KEY is not configured");
     }
+
+    const translation = await translateToEnglishForAnalysis(cleanContent);
 
     const response = await fetch(
       "https://blinkguardbackendmasanalyze-production.up.railway.app/analyze",
@@ -430,7 +429,7 @@ export const analyzeTxt = async (req, res) => {
           "Content-Type": "application/json",
           ...(internalApiKey ? { "X-Internal-Api-Key": internalApiKey } : {}),
         },
-        body: JSON.stringify({ message: cleanContent }),
+        body: JSON.stringify({ message: translation.text }),
         signal: controller.signal,
       }
     );
@@ -449,12 +448,14 @@ export const analyzeTxt = async (req, res) => {
 
 //here it extracts the url and then does the scan for it 
     const urls = extractUrls(cleanContent);
+   
+
     const urlResults = await Promise.all(
   urls.map(async url => {
     try {
       return await scanUrl(url);
     } catch (err) {
-      console.log("URL scan failed:", url, err.message);
+      console.log("URL scan failed:", err.message);
 
       return {
         url,
@@ -466,26 +467,41 @@ export const analyzeTxt = async (req, res) => {
   })
 );
 
-//here it combines the two results together to make a final result
     const finalResult = combineResults(analysis, urlResults);
-    const finalDecision = finalResult.finalScore < 40 ? 'not phishing' : 'phishing';
+    let finalDecision = "";
+    if(analysis?.final_decision=="phishing" ){
+    
+    finalDecision = finalResult.finalScore > 60
+    ? "phishing"
+    : finalResult.finalScore < 60
+    ? "suspicious" : "suspicious";
+    }
+    else{if(analysis?.final_decision=="spam"){
+    finalDecision = "suspicious";
+    }else{
+      finalDecision = finalResult.finalScore > 30 ? "suspicious" : "safe";
+    }
+  }
+     
     const riskBand= finalResult.finalScore < 30
         ? 'LOW'
         : finalResult.finalScore < 70
         ? 'MEDIUM'
         : 'HIGH';
+
+
     const shouldSave = finalDecision === "suspicious" || finalDecision === "phishing";
 
 //here is to save the message to db if it is phishing
    if (shouldSave) {
       const messageId = crypto.randomUUID();
       const scanId = crypto.randomUUID();
-      const scanType =
-  urls.length > 0 && cleanContent.replace(/https?:\/\/[^\s]+/gi, "").trim().length > 0
-    ? "TEXT_URL"
-    : urls.length > 0
-    ? "URL"
-    : "TEXT";
+      const scanType = scanTypeOverride ||
+        (urls.length > 0 && cleanContent.replace(/https?:\/\/[^\s]+/gi, "").trim().length > 0
+          ? "TEXT_URL"
+          : urls.length > 0
+          ? "URL"
+          : "TEXT");
 
       const savedScanResult = await ScanResult.create({
         scanId,
@@ -507,15 +523,15 @@ export const analyzeTxt = async (req, res) => {
       });
       await Message.create({
         messageId,
-        userId: userId || "unknown",
-        sourceType: sourceType || "MANUAL_SCAN",
-        content: cleanContent,
+        userId,
+        sourceType,
+        ...encryptMessageContent(cleanContent),
         contentHash,
         scanResult: savedScanResult._id,
       });
     }
 
-    return res.status(200).json({
+    return {
       fromDB: false,
       saved: shouldSave,
       data: {
@@ -528,10 +544,58 @@ export const analyzeTxt = async (req, res) => {
         explanations: finalResult.reasons,
         urlResults,
       },
+    };
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+};
+
+export const analyzeTxt = async (req, res) => {
+  try{
+    const { content,sourceType}= req.body;
+    if(!content || !content.trim()){
+      return res.status(400).json({error:"content is required"});
+    }
+
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+    const result = await scanCombinedText({
+      content,
+      sourceType: sourceType || "MANUAL_SCAN",
+      userId
     });
+
+    return res.status(200).json(result);
   }catch(err){
     return res.status(500).json({ error: err.message });
-  }finally{
-    if (timeout) clearTimeout(timeout);
+  }
+};
+
+export const scanImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "image is required" });
+    }
+
+    const extractedText = await extractTextFromImage(req.file.buffer);
+
+    if (!extractedText) {
+      return res.status(400).json({ error: "No readable text found in image" });
+    }
+
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+    const result = await scanCombinedText({
+      content: extractedText,
+      sourceType: "IMAGE_SCAN",
+      userId,
+      scanTypeOverride: "IMAGE"
+    });
+
+    return res.status(200).json({
+      extractedText,
+      data: result.data,
+      saved: result.saved
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 };

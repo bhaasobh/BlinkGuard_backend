@@ -2,6 +2,20 @@ import Message from "../models/Message.js";
 import crypto from "crypto";
 import { encryptMessageContent, serializeMessage } from "../utils/messageEncryption.js";
 import ScanResult from "../models/ScanResult.js";
+import Url from "../models/Url.js";
+
+const EDITABLE_DECISIONS = ["safe", "spam", "phishing"];
+
+const getRiskLevelForDecision = (decision) => {
+  if (decision === "phishing") return "HIGH";
+  if (decision === "spam") return "MEDIUM";
+  return "LOW";
+};
+
+const getScanType = (content, scanResult = {}) => {
+  if (scanResult.scanType) return scanResult.scanType;
+  return content?.includes("http") ? "TEXT_URL" : "TEXT";
+};
 
 export const getMessages = async (req, res) => {
   try {
@@ -33,6 +47,111 @@ export const createMessage = async (req, res) => {
     res.status(201).json(serializeMessage(message));
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+};
+
+export const updateMessageClassification = async (req, res) => {
+  try {
+    const {
+      messageId,
+      content,
+      sourceType = "MANUAL_SCAN",
+      decision: rawDecision,
+      scanResult = {},
+      saveSafeToDatabase = false,
+    } = req.body;
+    const decision = rawDecision?.toLowerCase();
+
+    if (!EDITABLE_DECISIONS.includes(decision)) {
+      return res.status(400).json({ error: "decision must be safe, spam, or phishing" });
+    }
+
+    if (!messageId) {
+      if (decision === "safe" && !saveSafeToDatabase) {
+        return res.status(200).json({ saved: false, decision });
+      }
+
+      if (!content?.trim()) {
+        return res.status(400).json({ error: "content is required" });
+      }
+
+      const newMessageId = crypto.randomUUID();
+      const newScan = await ScanResult.create({
+        scanId: crypto.randomUUID(),
+        messageId: newMessageId,
+        riskLevel: getRiskLevelForDecision(decision),
+        scanType: getScanType(content, scanResult),
+        confidenceScore: scanResult.confidenceScore ?? 0,
+        psychologicalFactors: scanResult.psychologicalFactors ?? [],
+        decision,
+        explanations: scanResult.explanations ?? [],
+      });
+
+      const newMessage = await Message.create({
+        messageId: newMessageId,
+        userId: req.user.userId,
+        sourceType,
+        ...encryptMessageContent(content.trim()),
+        scanResult: newScan._id,
+      });
+
+      const populatedMessage = await newMessage.populate("scanResult");
+      return res.status(201).json({
+        saved: true,
+        message: serializeMessage(populatedMessage),
+      });
+    }
+
+    const message = await Message.findOne({
+      messageId,
+      userId: req.user.userId,
+    }).populate("scanResult");
+
+    if (!message) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+
+    if (decision === "safe" && !saveSafeToDatabase) {
+      const scanResultId = message.scanResult?._id || message.scanResult;
+
+      await Promise.all([
+        Message.deleteOne({ _id: message._id }),
+        scanResultId ? ScanResult.deleteOne({ _id: scanResultId }) : Promise.resolve(),
+        Url.deleteMany({ message_id: message.messageId }),
+      ]);
+
+      return res.status(200).json({ saved: false, decision });
+    }
+
+    let savedScan = message.scanResult;
+
+    if (savedScan?._id) {
+      savedScan.decision = decision;
+      savedScan.riskLevel = getRiskLevelForDecision(decision);
+      await savedScan.save();
+    } else {
+      savedScan = await ScanResult.create({
+        scanId: crypto.randomUUID(),
+        messageId: message.messageId,
+        riskLevel: getRiskLevelForDecision(decision),
+        scanType: getScanType(content, scanResult),
+        confidenceScore: scanResult.confidenceScore ?? 0,
+        psychologicalFactors: scanResult.psychologicalFactors ?? [],
+        decision,
+        explanations: scanResult.explanations ?? [],
+      });
+
+      message.scanResult = savedScan._id;
+      await message.save();
+    }
+
+    const updatedMessage = await Message.findById(message._id).populate("scanResult");
+    return res.status(200).json({
+      saved: true,
+      message: serializeMessage(updatedMessage),
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 };
 
