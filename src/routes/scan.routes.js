@@ -1,10 +1,12 @@
 import express from "express";
+import multer from "multer";
 import auth from "../middleware/auth.middleware.js";
 import {
   scanText,
   scanRawText,
   getScanResult,
   analyzeTxt,
+  scanImage,
   scanUrlController
 } from "../controllers/scan.controller.js";
 
@@ -59,6 +61,46 @@ import {
  */
 
 const router = express.Router();
+const IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "image/bmp",
+  "image/tiff"
+]);
+
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    files: 1,
+    fileSize: IMAGE_MAX_SIZE_BYTES
+  },
+  fileFilter: (req, file, cb) => {
+    if (!ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype)) {
+      return cb(new Error("Unsupported image type"));
+    }
+
+    return cb(null, true);
+  }
+}).single("image");
+
+const handleImageUpload = (req, res, next) => {
+  imageUpload(req, res, (err) => {
+    if (!err) return next();
+
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({ error: "Image file is too large" });
+      }
+
+      return res.status(400).json({ error: err.message });
+    }
+
+    return res.status(400).json({ error: err.message });
+  });
+};
 
 /**
  * @swagger
@@ -95,6 +137,35 @@ router.post("/url", scanUrlController);
 
 router.post("/raw", auth, scanRawText);
 router.post("/rawtxt", auth, analyzeTxt);
+/**
+ * @swagger
+ * /scan/image:
+ *   post:
+ *     summary: Extract text from an image and scan it
+ *     tags: [Scan]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - image
+ *             properties:
+ *               image:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: OCR text and scan result
+ *       400:
+ *         description: Missing, invalid, oversized, or unreadable image
+ *       401:
+ *         description: Missing or invalid token
+ */
+router.post("/image", auth, handleImageUpload, scanImage);
 /**
  * @swagger
  * /scan/{scanId}:

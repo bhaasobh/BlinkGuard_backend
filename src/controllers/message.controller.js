@@ -58,6 +58,7 @@ export const updateMessageClassification = async (req, res) => {
       sourceType = "MANUAL_SCAN",
       decision: rawDecision,
       scanResult = {},
+      saveSafeToDatabase = false,
     } = req.body;
     const decision = rawDecision?.toLowerCase();
 
@@ -66,7 +67,7 @@ export const updateMessageClassification = async (req, res) => {
     }
 
     if (!messageId) {
-      if (decision === "safe") {
+      if (decision === "safe" && !saveSafeToDatabase) {
         return res.status(200).json({ saved: false, decision });
       }
 
@@ -110,7 +111,7 @@ export const updateMessageClassification = async (req, res) => {
       return res.status(404).json({ error: "Message not found" });
     }
 
-    if (decision === "safe") {
+    if (decision === "safe" && !saveSafeToDatabase) {
       const scanResultId = message.scanResult?._id || message.scanResult;
 
       await Promise.all([
