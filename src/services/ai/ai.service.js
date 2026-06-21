@@ -1,7 +1,7 @@
 import { analyzePsychology } from "./psychologyRules.js";
 
 const DEFAULT_MODEL_REPO = process.env.HF_MODEL_REPO || "bahaasobeh/blinkguard";
-const MODEL_TIMEOUT_MS = Number(process.env.HF_TIMEOUT_MS || 8000);
+const MODEL_TIMEOUT_MS = Number(process.env.HF_TIMEOUT_MS || 15000);
 
 function normalizeMlResult(data) {
   const first = Array.isArray(data?.[0]) ? data[0][0] : Array.isArray(data) ? data[0] : data;
