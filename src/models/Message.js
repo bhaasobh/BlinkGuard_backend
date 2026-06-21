@@ -8,6 +8,7 @@ const MessageSchema = new mongoose.Schema(
     content: { type: String, required: false },
     contentIv: { type: String, required: false },
     contentAuthTag: { type: String, required: false },
+    contentHash: { type: String, index: true },
     scanResult: { type: mongoose.Schema.Types.ObjectId, ref: "ScanResult" }
   },
   { timestamps: true }

@@ -4,7 +4,7 @@ import ScanResult from "../models/ScanResult.js";
 import { scanUrl } from "../services/scan.service.js";
 import { analyzeMessage } from "../services/ai/ai.service.js";
 import { translateToEnglishForAnalysis } from "../services/translation.service.js";
-import { error } from "console";
+import { extractTextFromImage } from "../services/vision.service.js";
 import {
   decryptMessageContent,
   encryptMessageContent,
@@ -304,8 +304,6 @@ const combineResults = (analysis, urlResults) => {
     }
   }
 
-  console.log("analysis", analysis);
-
   const urlScores = urlResults
     .map(u =>
       typeof u?.riskScore === "number"
@@ -375,31 +373,34 @@ const combineResults = (analysis, urlResults) => {
 
 
 
-export const analyzeTxt = async (req, res) => {
+const scanCombinedText = async ({
+  content,
+  sourceType = "MANUAL_SCAN",
+  userId,
+  scanTypeOverride
+}) => {
   let timeout;
   let controller;
-  try{
-    const { content,sourceType}= req.body;
-    if(!content || !content.trim()){
-      return res.status(400).json({error:"content is reqired"});
-    }
 
-    const cleanContent=content.trim();
-    const userId = req.user?.id || req.user?._id || req.user?.userId;
+  try {
+    const cleanContent = content.trim();
     const contentHash = crypto
       .createHash("sha256")
       .update(cleanContent)
       .digest("hex");
-    const existingMessage = await Message.findOne({ contentHash }).populate("scanResult");
+    const existingMessage = await Message.findOne({
+      contentHash,
+      userId
+    }).populate("scanResult");
 
     if (existingMessage && existingMessage.scanResult) {
       const scan = existingMessage.scanResult;
 
-      return res.status(200).json({
+      return {
         fromDB: true,
         saved: true,
         data: {
-          message: existingMessage.content,
+          message: cleanContent,
           ml_prediction: scan.mlPrediction ?? "",
           final_decision: scan.decision ?? "",
           risk_band: scan.riskLevel ?? "LOW",
@@ -407,7 +408,7 @@ export const analyzeTxt = async (req, res) => {
           psychological_factors: scan.psychologicalFactors ?? [],
           explanations: scan.explanations ?? [],
         },
-      });
+      };
     }
 //here it does the ml scan alone
     controller=new AbortController();
@@ -415,7 +416,7 @@ export const analyzeTxt = async (req, res) => {
     const internalApiKey = getInternalApiKey();
 
     if (!internalApiKey) {
-      return res.status(500).json({ error: "INTERNAL_API_KEY is not configured" });
+      throw new Error("INTERNAL_API_KEY is not configured");
     }
 
     const translation = await translateToEnglishForAnalysis(cleanContent);
@@ -454,7 +455,7 @@ export const analyzeTxt = async (req, res) => {
     try {
       return await scanUrl(url);
     } catch (err) {
-      console.log("URL scan failed:", url, err.message);
+      console.log("URL scan failed:", err.message);
 
       return {
         url,
@@ -466,42 +467,6 @@ export const analyzeTxt = async (req, res) => {
   })
 );
 
-const textWithoutUrls =
-  cleanContent.replace(/https?:\/\/[^\s]+/gi, "").trim();
-
-const isUrlOnly =
-  urls.length > 0 &&
-  textWithoutUrls.length === 0;
-
-if (isUrlOnly && urlResults.length > 0) {
-
-  const bestUrl = urlResults[0];
-
-  return res.status(200).json({
-    fromDB: false,
-    saved: false,
-    data: {
-      message: cleanContent,
-      ml_prediction: "URL_ONLY",
-      final_decision:
-        bestUrl.verdict === "dangerous"
-          ? "phishing"
-          : "not phishing",
-      risk_band:
-        bestUrl.risk_score > 70
-          ? "HIGH"
-          : bestUrl.risk_score > 30
-          ? "MEDIUM"
-          : "LOW",
-      final_risk_score:
-        bestUrl.risk_score / 100,
-      psychological_factors: [],
-      explanations:
-        bestUrl.heuristic_reasons || [],
-      urlResults,
-    },
-  });
-}
     const finalResult = combineResults(analysis, urlResults);
     let finalDecision = "";
     if(analysis?.final_decision=="phishing" ){
@@ -531,12 +496,12 @@ if (isUrlOnly && urlResults.length > 0) {
    if (shouldSave) {
       const messageId = crypto.randomUUID();
       const scanId = crypto.randomUUID();
-      const scanType =
-  urls.length > 0 && cleanContent.replace(/https?:\/\/[^\s]+/gi, "").trim().length > 0
-    ? "TEXT_URL"
-    : urls.length > 0
-    ? "URL"
-    : "TEXT";
+      const scanType = scanTypeOverride ||
+        (urls.length > 0 && cleanContent.replace(/https?:\/\/[^\s]+/gi, "").trim().length > 0
+          ? "TEXT_URL"
+          : urls.length > 0
+          ? "URL"
+          : "TEXT");
 
       const savedScanResult = await ScanResult.create({
         scanId,
@@ -558,15 +523,15 @@ if (isUrlOnly && urlResults.length > 0) {
       });
       await Message.create({
         messageId,
-        userId: userId || "unknown",
-        sourceType: sourceType || "MANUAL_SCAN",
-        content: cleanContent,
+        userId,
+        sourceType,
+        ...encryptMessageContent(cleanContent),
         contentHash,
         scanResult: savedScanResult._id,
       });
     }
 
-    return res.status(200).json({
+    return {
       fromDB: false,
       saved: shouldSave,
       data: {
@@ -579,10 +544,58 @@ if (isUrlOnly && urlResults.length > 0) {
         explanations: finalResult.reasons,
         urlResults,
       },
+    };
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+};
+
+export const analyzeTxt = async (req, res) => {
+  try{
+    const { content,sourceType}= req.body;
+    if(!content || !content.trim()){
+      return res.status(400).json({error:"content is required"});
+    }
+
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+    const result = await scanCombinedText({
+      content,
+      sourceType: sourceType || "MANUAL_SCAN",
+      userId
     });
+
+    return res.status(200).json(result);
   }catch(err){
     return res.status(500).json({ error: err.message });
-  }finally{
-    if (timeout) clearTimeout(timeout);
+  }
+};
+
+export const scanImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "image is required" });
+    }
+
+    const extractedText = await extractTextFromImage(req.file.buffer);
+
+    if (!extractedText) {
+      return res.status(400).json({ error: "No readable text found in image" });
+    }
+
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+    const result = await scanCombinedText({
+      content: extractedText,
+      sourceType: "IMAGE_SCAN",
+      userId,
+      scanTypeOverride: "IMAGE"
+    });
+
+    return res.status(200).json({
+      extractedText,
+      data: result.data,
+      saved: result.saved
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 };
