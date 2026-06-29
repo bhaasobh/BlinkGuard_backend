@@ -23,7 +23,11 @@ export const getMessages = async (req, res) => {
       .populate("scanResult")
       .sort({ createdAt: -1 });
 
-    res.json(messages.map(serializeMessage));
+    const decryptedMessages = messages
+      .map(serializeMessage)
+      .filter((message) => !message.contentUnavailable);
+
+    res.json(decryptedMessages);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

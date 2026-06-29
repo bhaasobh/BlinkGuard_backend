@@ -58,7 +58,17 @@ export const decryptMessageContent = (message) => {
 export const serializeMessage = (message) => {
   const data = message.toObject ? message.toObject() : { ...message };
 
-  data.content = decryptMessageContent(data);
+  try {
+    data.content = decryptMessageContent(data);
+  } catch (err) {
+    console.warn(
+      "Unable to decrypt message content",
+      data.messageId ? `messageId=${data.messageId}` : ""
+    );
+    data.content = "";
+    data.contentUnavailable = true;
+  }
+
   delete data.contentIv;
   delete data.contentAuthTag;
 
