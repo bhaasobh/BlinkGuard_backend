@@ -1,6 +1,6 @@
 const GOOGLE_TRANSLATE_BASE_URL =
   "https://translation.googleapis.com/language/translate/v2";
-const DEFAULT_TIMEOUT_MS = 5000;
+const DEFAULT_TIMEOUT_MS = 300000;
 
 const getTimeoutMs = () => {
   const configuredTimeout = Number(process.env.GOOGLE_TRANSLATE_TIMEOUT_MS);
@@ -88,7 +88,7 @@ export const translateToEnglishForAnalysis = async (message = "") => {
       translated: true
     };
   } catch (err) {
-    console.warn("Message translation failed; scanning original text:", err.message);
+    console.log("Message translation failed; scanning original text:", err);
 
     return {
       text: originalText,

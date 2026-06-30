@@ -1,7 +1,7 @@
 import { analyzePsychology } from "./psychologyRules.js";
 
-const DEFAULT_MODEL_REPO = process.env.HF_MODEL_REPO || "bahaasobeh/blinkguard";
-const MODEL_TIMEOUT_MS = Number(process.env.HF_TIMEOUT_MS || 15000);
+const getDefaultModelRepo = () => process.env.HF_MODEL_REPO || "bahaasobeh/blinkguard";
+const getModelTimeoutMs = () => Number(process.env.HF_TIMEOUT_MS || 15000);
 
 function normalizeMlResult(data) {
   const first = Array.isArray(data?.[0]) ? data[0][0] : Array.isArray(data) ? data[0] : data;
@@ -31,11 +31,11 @@ function normalizeMlResult(data) {
 
 async function callHuggingFaceModel(message) {
   console.log("Entering callHuggingFaceModel");
-  console.log("Model repo:", DEFAULT_MODEL_REPO);
+  console.log("Model repo:", getDefaultModelRepo());
   console.log("Has token:", !!process.env.HF_API_TOKEN);
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), getModelTimeoutMs());
 
   try {
     const headers = { "Content-Type": "application/json" };
@@ -44,7 +44,7 @@ async function callHuggingFaceModel(message) {
       headers.Authorization = `Bearer ${process.env.HF_API_TOKEN}`;
     }
 
-    const url = `https://router.huggingface.co/hf-inference/models/${DEFAULT_MODEL_REPO}`;
+    const url = `https://router.huggingface.co/hf-inference/models/${getDefaultModelRepo()}`;
     console.log("HF URL:", url);
 
     const response = await fetch(url, {
