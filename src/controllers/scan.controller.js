@@ -10,7 +10,7 @@ import {
   encryptMessageContent,
   serializeMessage
 } from "../utils/messageEncryption.js";
-const MODEL_TIMEOUT_MS = Number(process.env.HF_TIMEOUT_MS || 8000);
+const getModelTimeoutMs = () => Number(process.env.HF_TIMEOUT_MS || 8000);
 
 const INTERNAL_API_KEY_ENV_NAMES = [
   "INTERNAL_API_KEY",
@@ -174,7 +174,7 @@ export const getScanResult = async (req, res) => {
 
     //this is to analyze with ai+psychology rules
     controller = new AbortController();
-    timeout = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
+    timeout = setTimeout(() => controller.abort(), getModelTimeoutMs());
 
     const response = await fetch(
       "https://blinkguardbackendmasanalyze-production.up.railway.app/analyze",
@@ -412,7 +412,7 @@ const scanCombinedText = async ({
     }
 //here it does the ml scan alone
     controller=new AbortController();
-    timeout = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
+    timeout = setTimeout(() => controller.abort(), getModelTimeoutMs());
     const internalApiKey = getInternalApiKey();
 
     if (!internalApiKey) {
